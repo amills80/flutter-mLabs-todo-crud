@@ -70,24 +70,51 @@ class TodoListState extends State<TodoList> {
     );
   }
 
-  // Build the whole list of todo items
+  // Much like _addTodoItem, this modifies the array of todo strings and
+  // notifies the app that the state has changed by using setState
+  void _removeTodoItem(int index) {
+    setState(() => _todoItems.removeAt(index));
+  }
+
+  // Show an alert dialog asking the user to confirm that the task is done
+  void _promptRemoveTodoItem(int index) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return new AlertDialog(
+          title: new Text('Mark "${_todoItems[index]}" as done?'),
+          actions: <Widget>[
+            new FlatButton(
+              child: new Text('CANCEL'),
+              onPressed: () => Navigator.of(context).pop()
+            ),
+            new FlatButton(
+              child: new Text('MARK AS DONE'),
+              onPressed: () {
+                _removeTodoItem(index);
+                Navigator.of(context).pop();
+              }
+            )
+          ]
+        );
+      }
+    );
+  }
+
   Widget _buildTodoList() {
     return new ListView.builder(
       itemBuilder: (context, index) {
-        // itemBuilder will be automatically be called as many times as it takes for the
-        // list to fill up its available space, which is most likely more than the
-        // number of todo items we have. So, we need to check the index is OK.
         if(index < _todoItems.length) {
-          return _buildTodoItem(_todoItems[index]);
+          return _buildTodoItem(_todoItems[index], index);
         }
       },
     );
   }
 
-  // Build a single todo item
-  Widget _buildTodoItem(String todoText) {
+  Widget _buildTodoItem(String todoText, int index) {
     return new ListTile(
-      title: new Text(todoText)
+      title: new Text(todoText),
+      onTap: () => _promptRemoveTodoItem(index)
     );
   }
 }
