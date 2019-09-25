@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+// import 'p'
 
 void main() => runApp(new TodoApp());
 
@@ -18,13 +21,68 @@ class TodoList extends StatefulWidget {
 }
 
 class TodoListState extends State<TodoList> {
-  List<String> _todoItems = [];
+  List _todoItems = [];
+  bool _isLoading = true;
+  // final url = "http://localhost:3000/tasks";
+  final url = "https://flutter-api-endpoint.herokuapp.com/tasks";
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future _fetchData() async {
+    setState(() {
+      _todoItems = [];
+    });
+    // Future<List<Task>> _fetchData() async {
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      List tempList = json.decode(response.body) as List;
+      setState(() {
+        for (var i=0; i<tempList.length; i++){
+          var item = tempList[i];
+          // Temp error mgmt try-catch
+          if(item['name'] == null ) {
+            item['name'] = 'error';
+          }
+          _todoItems.add(tempList[i]);
+        }        
+      });
+      _isLoading = false;
+    } else {
+      throw Exception('Failed to load');
+    }
+  }
+  
   // Instead of autogenerating a todo item, _addTodoItem now accepts a string
-  void _addTodoItem(String task) {
+  void _addTodoItem(String task) async {
     // Only add the task if the user actually entered something
     if(task.length > 0) {
-      setState(() => _todoItems.add(task));
+      String postString = url;
+      Map<String, String> header = {"Content-type": "application/json" };
+      String body = '{"name":"'+task+'"}';
+      final resp = await http.post(postString, headers: header, body: body);
+      if (resp.statusCode == 200) {
+        print(resp.body);
+        _fetchData();
+      }
+
+    }
+  }
+
+  void _editTodoItem(int index, String val) async {
+    if (val.length>0){
+      String postString = url+"/"+_todoItems[index]['_id'];
+      Map<String, String> header = {"Content-type": "application/json" };
+      String body = '{"name":"'+val+'"}';
+
+      final resp = await http.put(postString, headers: header, body: body);
+      if (resp.statusCode == 200) {
+        // print(resp.body);
+        _fetchData();
+      }
     }
   }
 
@@ -33,12 +91,56 @@ class TodoListState extends State<TodoList> {
       appBar: new AppBar(
         title: new Text('Todo List')
       ),
-      body: _buildTodoList(),
-      floatingActionButton: new FloatingActionButton(
-        onPressed: _pushAddTodoScreen, // pressing this button now opens the new screen
-        tooltip: 'Add task',
-        child: new Icon(Icons.add)
+      body: new Center(
+        child: _isLoading
+          ? new CircularProgressIndicator() 
+          : new ListView.builder(
+            itemCount: this._todoItems != null ? this._todoItems.length : 0,
+            itemBuilder: (context, i) {
+              final item = this._todoItems[i];
+              print("item: $item");
+              return new FlatButton(
+                padding: new EdgeInsets.all(0),
+                child: new ListTile(
+                  title: new Text(_todoItems[i]["name"]),
+                ),
+                onPressed: () => _promptRemoveTodoItem(i)
+                  // _promptRemoveTodoItem(_todoItems[i]);
+                  // print(_todoItems[i]);
+                ,
+              );
+            }),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _pushAddTodoScreen() ,
+        tooltip: 'Increment',
+        child: Icon(Icons.add),
+      )
+    );
+  }
+
+  void _pushEditTodoScreen(int index) {
+    Navigator.of(context).push(
+      new MaterialPageRoute(
+        builder: (context) {
+          return new Scaffold(
+            appBar: new AppBar(
+              title: new Text('Edit Task'),
+            ),
+            body: new TextField(
+              autofocus: true,
+              controller: new TextEditingController(text: _todoItems[index]["name"]),
+              onSubmitted: (val) {
+                setState(() {
+                  _isLoading=true;
+                });
+                _editTodoItem(index, val);
+                Navigator.pop(context);
+              },
+            ),
+          );
+        }
+      )
     );
   }
 
@@ -56,6 +158,9 @@ class TodoListState extends State<TodoList> {
             body: new TextField(
               autofocus: true,
               onSubmitted: (val) {
+                setState(() {
+                  _isLoading=true;
+                });
                 _addTodoItem(val);
                 Navigator.pop(context); // Close the add todo screen
               },
@@ -72,8 +177,13 @@ class TodoListState extends State<TodoList> {
 
   // Much like _addTodoItem, this modifies the array of todo strings and
   // notifies the app that the state has changed by using setState
-  void _removeTodoItem(int index) {
-    setState(() => _todoItems.removeAt(index));
+  void _removeTodoItem(int index) async {
+    var urlstring = url+'/'+_todoItems[index]['_id'];
+    final resp = await http.delete(urlstring);
+    if (resp.statusCode == 200) {
+      print(resp.body);
+      _fetchData();
+    }
   }
 
   // Show an alert dialog asking the user to confirm that the task is done
@@ -82,14 +192,27 @@ class TodoListState extends State<TodoList> {
       context: context,
       builder: (BuildContext context) {
         return new AlertDialog(
-          title: new Text('Mark "${_todoItems[index]}" as done?'),
+          title: new Text('Mark "${_todoItems[index]['name']}" as done?'),
           actions: <Widget>[
             new FlatButton(
               child: new Text('CANCEL'),
               onPressed: () => Navigator.of(context).pop()
             ),
-            new FlatButton(
-              child: new Text('MARK AS DONE'),
+            new RaisedButton(
+              color: Colors.blue,
+              child: new Text('EDIT', 
+                style: TextStyle(color: Colors.white)
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _pushEditTodoScreen(index);
+              }
+            ),
+            new RaisedButton(
+              color: Colors.red,
+              child: new Text('REMOVE', 
+                style: TextStyle(color: Colors.white)
+              ),
               onPressed: () {
                 _removeTodoItem(index);
                 Navigator.of(context).pop();
@@ -98,23 +221,6 @@ class TodoListState extends State<TodoList> {
           ]
         );
       }
-    );
-  }
-
-  Widget _buildTodoList() {
-    return new ListView.builder(
-      itemBuilder: (context, index) {
-        if(index < _todoItems.length) {
-          return _buildTodoItem(_todoItems[index], index);
-        }
-      },
-    );
-  }
-
-  Widget _buildTodoItem(String todoText, int index) {
-    return new ListTile(
-      title: new Text(todoText),
-      onTap: () => _promptRemoveTodoItem(index)
     );
   }
 }
