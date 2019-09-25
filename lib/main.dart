@@ -36,7 +36,6 @@ class TodoListState extends State<TodoList> {
     setState(() {
       _todoItems = [];
     });
-    // Future<List<Task>> _fetchData() async {
     final response = await http.get(url);
     if (response.statusCode == 200) {
       List tempList = json.decode(response.body) as List;
@@ -98,17 +97,17 @@ class TodoListState extends State<TodoList> {
             itemCount: this._todoItems != null ? this._todoItems.length : 0,
             itemBuilder: (context, i) {
               final item = this._todoItems[i];
-              print("item: $item");
-              return new FlatButton(
-                padding: new EdgeInsets.all(0),
-                child: new ListTile(
-                  title: new Text(_todoItems[i]["name"]),
+              // print("item: $item");
+
+              return new ListTile(
+                // leading: thumbnail(),
+                title: new Text(item['name']),
+                trailing: IconButton(
+                  onPressed: () => _promptRemoveTodoItem(i),
+                  icon: Icon(Icons.more_vert)
                 ),
-                onPressed: () => _promptRemoveTodoItem(i)
-                  // _promptRemoveTodoItem(_todoItems[i]);
-                  // print(_todoItems[i]);
-                ,
               );
+            
             }),
       ),
       floatingActionButton: FloatingActionButton(
@@ -147,8 +146,6 @@ class TodoListState extends State<TodoList> {
   void _pushAddTodoScreen() {
     // Push this page onto the stack
     Navigator.of(context).push(
-      // MaterialPageRoute will automatically animate the screen entry, as well
-      // as adding a back button to close it
       new MaterialPageRoute(
         builder: (context) {
           return new Scaffold(
