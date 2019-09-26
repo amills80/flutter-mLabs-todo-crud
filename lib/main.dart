@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-// import 'p'
+import './task.dart';
 
 void main() => runApp(new TodoApp());
 
@@ -23,6 +26,9 @@ class TodoList extends StatefulWidget {
 class TodoListState extends State<TodoList> {
   List _todoItems = [];
   bool _isLoading = true;
+  final _formKey = GlobalKey();
+  Future<File> imgFile;  
+
   // final url = "http://localhost:3000/tasks";
   final url = "https://flutter-api-endpoint.herokuapp.com/tasks";
 
@@ -31,6 +37,13 @@ class TodoListState extends State<TodoList> {
     super.initState();
     _fetchData();
   }
+
+  // void _choose() async {
+  //   var uploadThread = await ImagePicker.pickImage(source: ImageSource.gallery);
+  //   setState(() {
+  //     file = uploadThread;
+  //   });
+  // }
 
   Future _fetchData() async {
     setState(() {
@@ -55,19 +68,21 @@ class TodoListState extends State<TodoList> {
     }
   }
   
-  // Instead of autogenerating a todo item, _addTodoItem now accepts a string
-  void _addTodoItem(String task) async {
-    // Only add the task if the user actually entered something
+  void _addTodoItem(Task newTask) async {
+    var task = newTask.name;
+    var img = (defaultB64THR);
+    // String thumb = (newTask.thumbnail != null )? newTask.thumbnail : '';
+    // print(thumb);
     if(task.length > 0) {
       String postString = url;
       Map<String, String> header = {"Content-type": "application/json" };
-      String body = '{"name":"'+task+'"}';
+      String body = '{"name":"'+task+'", "thumbnail":"'+img+'"}';
       final resp = await http.post(postString, headers: header, body: body);
       if (resp.statusCode == 200) {
         print(resp.body);
+        Navigator.pop(context);
         _fetchData();
       }
-
     }
   }
 
@@ -98,9 +113,10 @@ class TodoListState extends State<TodoList> {
             itemBuilder: (context, i) {
               final item = this._todoItems[i];
               // print("item: $item");
-
+              Uint8List bytes = base64Decode(item['thumbnail']);
               return new ListTile(
-                // leading: thumbnail(),
+                leading: new Image.memory(bytes),
+                // leading: ImageClickEvent(),
                 title: new Text(item['name']),
                 trailing: IconButton(
                   onPressed: () => _promptRemoveTodoItem(i),
@@ -126,17 +142,57 @@ class TodoListState extends State<TodoList> {
             appBar: new AppBar(
               title: new Text('Edit Task'),
             ),
-            body: new TextField(
-              autofocus: true,
-              controller: new TextEditingController(text: _todoItems[index]["name"]),
-              onSubmitted: (val) {
-                setState(() {
-                  _isLoading=true;
-                });
-                _editTodoItem(index, val);
-                Navigator.pop(context);
-              },
-            ),
+            body: new Container(
+              padding: const EdgeInsets.all(8.0),
+              child: new Column(
+                children: <Widget>[
+                  new TextField(
+                    autofocus: true,
+                    controller: new TextEditingController(text: _todoItems[index]["name"]),
+                    onSubmitted: (val) {
+                      setState(() {
+                        _isLoading=true;
+                      });
+                      _editTodoItem(index, val);
+                      Navigator.pop(context);
+                    },
+                    decoration: new InputDecoration(
+                      hintText: 'Task Name',
+                      contentPadding: const EdgeInsets.all(16.0)
+                    ),
+                  ),
+                  SizedBox(height: 10.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      // SizedBox(width: 20.0),
+                      RaisedButton(
+                        onPressed: null,
+                        child: Text('Update Thumbnail'),
+                      ),
+                      // new Container(
+                      //   padding: EdgeInsets.all(20),
+                      //   child: file == null
+                      //   ? Text('No Image Selected') 
+                      //   : Image.file(file, height: 80,),
+                      // )
+                    ],
+                  ),
+                  RaisedButton(
+                    child: Text('Submit Changes'),
+                    color: Colors.green,
+                    onPressed: () {
+                      setState(() {
+                        _isLoading=true;
+                      });
+                      // TODO FIGURE OUT HOW TO SUBMIT ENTIRE FORM
+                      // _editTodoItem(index, val);
+                      Navigator.pop(context);
+                    }
+                  )
+                ],
+              )
+            )
           );
         }
       )
@@ -144,7 +200,7 @@ class TodoListState extends State<TodoList> {
   }
 
   void _pushAddTodoScreen() {
-    // Push this page onto the stack
+    Task newTask = new Task();    
     Navigator.of(context).push(
       new MaterialPageRoute(
         builder: (context) {
@@ -152,18 +208,49 @@ class TodoListState extends State<TodoList> {
             appBar: new AppBar(
               title: new Text('Add a new task')
             ),
-            body: new TextField(
-              autofocus: true,
-              onSubmitted: (val) {
-                setState(() {
-                  _isLoading=true;
-                });
-                _addTodoItem(val);
-                Navigator.pop(context); // Close the add todo screen
-              },
-              decoration: new InputDecoration(
-                hintText: 'Enter something to do...',
-                contentPadding: const EdgeInsets.all(16.0)
+            body: Form(
+              key: _formKey,
+              autovalidate: true,
+              child: new Container(
+                padding: const EdgeInsets.all(8.0),
+                child: new Column(
+                  children: <Widget>[
+                    new TextFormField(
+                      decoration: new InputDecoration(
+                        hintText: 'Enter something to do...',
+                        contentPadding: const EdgeInsets.all(16.0)
+                      ),
+                      validator: (val) => val.isEmpty ? 'Name is required' : null,
+                      onSaved: (val) => {newTask.name = val},
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        
+                        RaisedButton(
+                          color: Colors.blue,
+                          onPressed: null,
+                          child: Text('Select Img'),)
+                      ],
+                    ), 
+
+                    RaisedButton(
+                      onPressed: (){
+                        // _addTodoItem(newTask);
+                        final FormState form = _formKey.currentState;
+                        if (!form.validate()){
+                          print('Form Not Valid');
+                        } else {
+                          form.save();
+                          print(newTask.name);
+                          _addTodoItem(newTask);
+                        }
+                      },
+                      child: Text('Submit Task'),
+                      color: Colors.green,
+                    )
+                  ],
+                ),
               ),
             )
           );
@@ -172,8 +259,6 @@ class TodoListState extends State<TodoList> {
     );
   }
 
-  // Much like _addTodoItem, this modifies the array of todo strings and
-  // notifies the app that the state has changed by using setState
   void _removeTodoItem(int index) async {
     var urlstring = url+'/'+_todoItems[index]['_id'];
     final resp = await http.delete(urlstring);
@@ -183,7 +268,6 @@ class TodoListState extends State<TodoList> {
     }
   }
 
-  // Show an alert dialog asking the user to confirm that the task is done
   void _promptRemoveTodoItem(int index) {
     showDialog(
       context: context,
@@ -218,6 +302,10 @@ class TodoListState extends State<TodoList> {
           ]
         );
       }
+
+
     );
   }
+    
+
 }
