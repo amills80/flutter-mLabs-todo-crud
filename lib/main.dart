@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
+// import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import './task.dart';
@@ -17,7 +18,6 @@ class TodoApp extends StatelessWidget {
     );
   }
 }
-
 class TodoList extends StatefulWidget {
   @override
   createState() => new TodoListState();
@@ -27,7 +27,7 @@ class TodoListState extends State<TodoList> {
   List _todoItems = [];
   bool _isLoading = true;
   final _formKey = GlobalKey();
-  Future<File> imgFile;  
+  File _image;
 
   // final url = "http://localhost:3000/tasks";
   final url = "https://flutter-api-endpoint.herokuapp.com/tasks";
@@ -37,13 +37,18 @@ class TodoListState extends State<TodoList> {
     super.initState();
     _fetchData();
   }
-
-  // void _choose() async {
-  //   var uploadThread = await ImagePicker.pickImage(source: ImageSource.gallery);
-  //   setState(() {
-  //     file = uploadThread;
-  //   });
-  // }
+  
+  Future getImage() async {
+    var image = await ImagePicker.pickImage(
+      maxHeight: 100,
+      maxWidth: 100,
+      imageQuality: 90,
+      source: ImageSource.gallery
+    );
+    setState(() {
+      _image = image;
+    });
+  }
 
   Future _fetchData() async {
     setState(() {
@@ -70,18 +75,25 @@ class TodoListState extends State<TodoList> {
   
   void _addTodoItem(Task newTask) async {
     var task = newTask.name;
-    var img = (defaultB64THR);
-    // String thumb = (newTask.thumbnail != null )? newTask.thumbnail : '';
-    // print(thumb);
+    // var img = (defaultB64THR);
+    
     if(task.length > 0) {
       String postString = url;
+      String body;
       Map<String, String> header = {"Content-type": "application/json" };
-      String body = '{"name":"'+task+'", "thumbnail":"'+img+'"}';
+      if (newTask.thumbnail != null) {
+        body = '{"name":"'+task+'", "thumbnail":"'+newTask.thumbnail+'"}';
+      } else {
+        body = '{"name":"'+task+'"}';
+      }
+      
       final resp = await http.post(postString, headers: header, body: body);
       if (resp.statusCode == 200) {
         print(resp.body);
         Navigator.pop(context);
         _fetchData();
+      } else {
+        print(resp.body);
       }
     }
   }
@@ -200,6 +212,7 @@ class TodoListState extends State<TodoList> {
   }
 
   void _pushAddTodoScreen() {
+    _image = null;
     Task newTask = new Task();    
     Navigator.of(context).push(
       new MaterialPageRoute(
@@ -226,23 +239,28 @@ class TodoListState extends State<TodoList> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        
+                        (_image != null)? 
+                        Image.file(_image, height: 40, width: 40,) : 
+                        new Text('N/A'),
                         RaisedButton(
                           color: Colors.blue,
-                          onPressed: null,
+                          onPressed: getImage,
                           child: Text('Select Img'),)
                       ],
                     ), 
 
                     RaisedButton(
                       onPressed: (){
-                        // _addTodoItem(newTask);
                         final FormState form = _formKey.currentState;
                         if (!form.validate()){
                           print('Form Not Valid');
                         } else {
                           form.save();
-                          print(newTask.name);
+                          if (_image != null){
+                            newTask.thumbnail = base64Encode(_image.readAsBytesSync());
+                          }
+                          // print(newTask.name);
+                          // print(newTask.thumbnail);
                           _addTodoItem(newTask);
                         }
                       },
